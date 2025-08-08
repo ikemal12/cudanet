@@ -1,12 +1,13 @@
 #include <iostream>
 #include <vector>
 #include <iomanip>
-#include "conv2d.cu"
+#include "conv2d.h"
 
-void print_matrix(const float* mat, int height, int width) {
+void print_matrix(const float* mat, int height, int width, const std::string& name) {
+    std::cout << name << ":\n";
     for (int i = 0; i < height; ++i) {
         for (int j = 0; j < width; ++j) {
-            std::cout << std::setw(6) << std::fixed << std::setprecision(2) << mat[i * width * j] << " ";
+            std::cout << std::setw(6) << std::fixed << std::setprecision(2) << mat[i * width + j] << " ";
         }
         std::cout << "\n";
     }
@@ -42,13 +43,8 @@ int main() {
         output.data()
     );
 
-    std::cout << "Input:\n";
-    print_matrix(input.data(), image_h, image_w);
-
-    std::cout << "\nKernel:\n";
-    print_matrix(kernel.data(), kernel_h, kernel_w);
-
-    std::cout << "\nOutput:\n";
-    print_matrix(output.data(), output_h, output_w);    
+    print_matrix(input.data(), image_h, image_w, "Input");
+    print_matrix(kernel.data(), kernel_h, kernel_w, "Kernel");
+    print_matrix(output.data(), output_h, output_w, "Output");
     return 0;
 }
