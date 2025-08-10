@@ -73,6 +73,59 @@ __global__ void conv2d_kernel(const float* input, const float *kernel, float* ou
 }
 
 
+__global__ void relu_kernel(const float* input, float* output, int size) {
+    int idx = blockIdx.x * blockDim.x + threadIdx.x;
+    
+    // ReLU: max(0, x)
+    if (idx < size) {
+        output[idx] = fmaxf(0.0f, input[idx]);
+    }
+}
+
+
+__global__ void maxpool2d_kernel(const float* input, float* output,
+                                int inputWidth, int inputHeight,
+                                int poolSize, int stride) {
+    
+   
+    int tx = threadIdx.x;
+    int ty = threadIdx.y;
+    int bx = blockIdx.x;
+    int by = blockIdx.y;
+    int blockDimX = blockDim.x;
+    int blockDimY = blockDim.y;
+    
+   
+    int outputX = bx * blockDimX + tx;
+    int outputY = by * blockDimY + ty;
+    
+    
+    int outputWidth = (inputWidth - poolSize) / stride + 1;
+    int outputHeight = (inputHeight - poolSize) / stride + 1;
+    
+    if (outputX < outputWidth && outputY < outputHeight) {
+        int inputStartX = outputX * stride;
+        int inputStartY = outputY * stride;
+
+        float maxVal = -INFINITY;
+        
+        for (int py = 0; py < poolSize; ++py) {
+            for (int px = 0; px < poolSize; ++px) {
+                int inputX = inputStartX + px;
+                int inputY = inputStartY + py;
+                
+            
+                if (inputX < inputWidth && inputY < inputHeight) {
+                    float val = input[inputY * inputWidth + inputX];
+                    maxVal = fmaxf(maxVal, val);
+                }
+            }
+        }
+        output[outputY * outputWidth + outputX] = maxVal;
+    }
+}
+
+
 
 void conv2d(const float* input, int inputHeight, int inputWidth,
             const float* kernel, int kernelHeight, int kernelWidth,
@@ -107,5 +160,59 @@ void conv2d(const float* input, int inputHeight, int inputWidth,
 
     cudaFree(d_input);
     cudaFree(d_kernel);
+    cudaFree(d_output);
+}
+
+
+void relu(const float* input, int height, int width, float* output) {
+    int size = height * width;
+    float *d_input, *d_output;
+    cudaMalloc(&d_input, sizeof(float) * size);
+    cudaMalloc(&d_output, sizeof(float) * size);
+    cudaMemcpy(d_input, input, sizeof(float) * size, cudaMemcpyHostToDevice);
+
+    int blockSize = 256;
+    int gridSize = (size + blockSize - 1) / blockSize;
+    
+    relu_kernel<<<gridSize, blockSize>>>(d_input, d_output, size);
+    
+   
+    cudaDeviceSynchronize();
+    cudaMemcpy(output, d_output, sizeof(float) * size, cudaMemcpyDeviceToHost);
+    cudaFree(d_input);
+    cudaFree(d_output);
+}
+
+
+void maxpool2d(const float* input, int inputHeight, int inputWidth, 
+               int poolSize, int stride, float* output) {
+    
+  
+    int outputWidth = (inputWidth - poolSize) / stride + 1;
+    int outputHeight = (inputHeight - poolSize) / stride + 1;
+    
+   
+    float *d_input, *d_output;
+    cudaMalloc(&d_input, sizeof(float) * inputWidth * inputHeight);
+    cudaMalloc(&d_output, sizeof(float) * outputWidth * outputHeight);
+    
+   
+    cudaMemcpy(d_input, input, sizeof(float) * inputWidth * inputHeight, cudaMemcpyHostToDevice);
+    
+   
+    dim3 blockSize(16, 16);
+    dim3 gridSize((outputWidth + blockSize.x - 1) / blockSize.x,
+                  (outputHeight + blockSize.y - 1) / blockSize.y);
+    
+   
+    maxpool2d_kernel<<<gridSize, blockSize>>>(
+        d_input, d_output,
+        inputWidth, inputHeight,
+        poolSize, stride);
+    
+    
+    cudaDeviceSynchronize();
+    cudaMemcpy(output, d_output, sizeof(float) * outputWidth * outputHeight, cudaMemcpyDeviceToHost);
+    cudaFree(d_input);
     cudaFree(d_output);
 }
