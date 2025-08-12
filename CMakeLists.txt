@@ -5,7 +5,12 @@ set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CUDA_STANDARD 17)
 
 find_package(CUDA REQUIRED)
-add_executable(cudanet src/main.cpp src/conv2d.cu)
+add_executable(cudanet 
+    src/main.cpp 
+    src/conv2d.cu 
+    src/perf.cu 
+    src/test.cu
+)
 set_property(TARGET cudanet PROPERTY CUDA_SEPARABLE_COMPILATION ON)
 
 target_compile_options(cudanet PRIVATE 
