@@ -205,7 +205,7 @@ void benchmark_maxpool(int inputHeight, int inputWidth,
 void benchmark_cnn_layers(int inputHeight, int inputWidth, 
                           int kernelHeight, int kernelWidth,
                           int iterations) {
-    
+
     benchmark_convolution(inputHeight, inputWidth, kernelHeight, kernelWidth, iterations);
     
     int conv_h = inputHeight - kernelHeight + 1;
@@ -213,4 +213,61 @@ void benchmark_cnn_layers(int inputHeight, int inputWidth,
     benchmark_relu(conv_h, conv_w, iterations * 5);
    
     benchmark_maxpool(conv_h, conv_w, 2, 2, iterations);
+}
+
+void benchmark_batch_operations(int batchSize, int inputHeight, int inputWidth, 
+                               int kernelHeight, int kernelWidth, int iterations) {
+    
+    std::cout << "\n=== BATCH OPERATIONS BENCHMARK ===\n";
+    std::cout << "Batch size: " << batchSize << " | Input: " << inputWidth << "x" << inputHeight << "\n";
+    
+    int inputSize = inputWidth * inputHeight;
+    int outputWidth = inputWidth - kernelWidth + 1;
+    int outputHeight = inputHeight - kernelHeight + 1;
+    int outputSize = outputWidth * outputHeight;
+    
+    float* batch_input = new float[batchSize * inputSize];
+    float* kernel = new float[kernelWidth * kernelHeight];
+    float* batch_output_conv = new float[batchSize * outputSize];
+    float* batch_output_relu = new float[batchSize * outputSize];
+    
+    for (int i = 0; i < batchSize * inputSize; ++i) batch_input[i] = static_cast<float>(rand()) / RAND_MAX;
+    for (int i = 0; i < kernelWidth * kernelHeight; ++i) kernel[i] = static_cast<float>(rand()) / RAND_MAX;
+    
+    cudaEvent_t start, stop;
+    cudaEventCreate(&start);
+    cudaEventCreate(&stop);
+    
+    conv2d_batch(batch_input, batchSize, inputHeight, inputWidth, kernel, kernelHeight, kernelWidth, batch_output_conv); // warmup
+    
+    cudaEventRecord(start);
+    for (int i = 0; i < iterations; ++i) {
+        conv2d_batch(batch_input, batchSize, inputHeight, inputWidth, kernel, kernelHeight, kernelWidth, batch_output_conv);
+    }
+    cudaEventRecord(stop);
+    cudaEventSynchronize(stop);
+    
+    float batch_conv_time;
+    cudaEventElapsedTime(&batch_conv_time, start, stop);
+    relu_batch(batch_output_conv, batchSize, outputHeight, outputWidth, batch_output_relu); // warmup
+    
+    cudaEventRecord(start);
+    for (int i = 0; i < iterations * 5; ++i) {
+        relu_batch(batch_output_conv, batchSize, outputHeight, outputWidth, batch_output_relu);
+    }
+    cudaEventRecord(stop);
+    cudaEventSynchronize(stop);
+    
+    float batch_relu_time;
+    cudaEventElapsedTime(&batch_relu_time, start, stop);
+  
+    double images_per_sec_conv = (double)(batchSize * iterations) / (batch_conv_time * 1e-3);
+    double images_per_sec_relu = (double)(batchSize * iterations * 5) / (batch_relu_time * 1e-3);
+    
+    std::cout << std::fixed << std::setprecision(2);
+    std::cout << "Batch Conv: " << batch_conv_time/iterations << " ms/batch | " << images_per_sec_conv << " images/sec\n";
+    std::cout << "Batch ReLU: " << batch_relu_time/(iterations*5) << " ms/batch | " << images_per_sec_relu << " images/sec\n";
+    
+    delete[] batch_input; delete[] kernel; delete[] batch_output_conv; delete[] batch_output_relu;
+    cudaEventDestroy(start); cudaEventDestroy(stop);
 }

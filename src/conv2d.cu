@@ -216,3 +216,92 @@ void maxpool2d(const float* input, int inputHeight, int inputWidth,
     cudaFree(d_input);
     cudaFree(d_output);
 }
+
+
+void conv2d_batch(const float* input, int batchSize, int inputHeight, int inputWidth,
+                  const float* kernel, int kernelHeight, int kernelWidth,
+                  float* output) {
+    
+    int outputWidth = inputWidth - kernelWidth + 1;
+    int outputHeight = inputHeight - kernelHeight + 1;
+    int inputSize = inputWidth * inputHeight;
+    int outputSize = outputWidth * outputHeight;
+
+    float *d_input, *d_kernel, *d_output;
+    cudaMalloc(&d_input, sizeof(float) * batchSize * inputSize);
+    cudaMalloc(&d_kernel, sizeof(float) * kernelWidth * kernelHeight);
+    cudaMalloc(&d_output, sizeof(float) * batchSize * outputSize);
+
+    cudaMemcpy(d_input, input, sizeof(float) * batchSize * inputSize, cudaMemcpyHostToDevice);
+    cudaMemcpy(d_kernel, kernel, sizeof(float) * kernelWidth * kernelHeight, cudaMemcpyHostToDevice);
+
+    dim3 blockSize(16, 16);
+    dim3 gridSize((outputWidth + blockSize.x - 1) / blockSize.x,
+                  (outputHeight + blockSize.y - 1) / blockSize.y,
+                  batchSize); 
+
+    int sharedWidth = blockSize.x + kernelWidth - 1;
+    int sharedHeight = blockSize.y + kernelHeight - 1;
+    size_t sharedMemSize = sharedWidth * sharedHeight * sizeof(float);
+
+    for (int b = 0; b < batchSize; ++b) {
+        conv2d_kernel<<<gridSize, blockSize, sharedMemSize>>>(
+            d_input + b * inputSize, d_kernel, d_output + b * outputSize,
+            inputWidth, inputHeight, kernelWidth, kernelHeight);
+    }
+
+    cudaDeviceSynchronize();
+    cudaMemcpy(output, d_output, sizeof(float) * batchSize * outputSize, cudaMemcpyDeviceToHost);
+
+    cudaFree(d_input);
+    cudaFree(d_kernel);
+    cudaFree(d_output);
+}
+
+void relu_batch(const float* input, int batchSize, int height, int width, float* output) {
+    int totalSize = batchSize * height * width;
+    
+    float *d_input, *d_output;
+    cudaMalloc(&d_input, sizeof(float) * totalSize);
+    cudaMalloc(&d_output, sizeof(float) * totalSize);
+    cudaMemcpy(d_input, input, sizeof(float) * totalSize, cudaMemcpyHostToDevice);
+
+    int blockSize = 256;
+    int gridSize = (totalSize + blockSize - 1) / blockSize;
+    relu_kernel<<<gridSize, blockSize>>>(d_input, d_output, totalSize);
+    
+    cudaDeviceSynchronize();
+    cudaMemcpy(output, d_output, sizeof(float) * totalSize, cudaMemcpyDeviceToHost);
+    cudaFree(d_input);
+    cudaFree(d_output);
+}
+
+void maxpool2d_batch(const float* input, int batchSize, int inputHeight, int inputWidth,
+                     int poolSize, int stride, float* output) {
+    
+    int outputWidth = (inputWidth - poolSize) / stride + 1;
+    int outputHeight = (inputHeight - poolSize) / stride + 1;
+    int inputSize = inputWidth * inputHeight;
+    int outputSize = outputWidth * outputHeight;
+    
+    float *d_input, *d_output;
+    cudaMalloc(&d_input, sizeof(float) * batchSize * inputSize);
+    cudaMalloc(&d_output, sizeof(float) * batchSize * outputSize);
+    
+    cudaMemcpy(d_input, input, sizeof(float) * batchSize * inputSize, cudaMemcpyHostToDevice);
+    
+    dim3 blockSize(16, 16);
+    dim3 gridSize((outputWidth + blockSize.x - 1) / blockSize.x,
+                  (outputHeight + blockSize.y - 1) / blockSize.y);
+    
+    for (int b = 0; b < batchSize; ++b) {
+        maxpool2d_kernel<<<gridSize, blockSize>>>(
+            d_input + b * inputSize, d_output + b * outputSize,
+            inputWidth, inputHeight, poolSize, stride);
+    }
+    
+    cudaDeviceSynchronize();
+    cudaMemcpy(output, d_output, sizeof(float) * batchSize * outputSize, cudaMemcpyDeviceToHost);
+    cudaFree(d_input);
+    cudaFree(d_output);
+}

@@ -122,13 +122,57 @@ bool test_cnn_pipeline() {
 
 void run_all_tests() {
     int passed = 0;
-    int total = 4;
+    int total = 5;
     
     if (test_conv2d()) passed++;
     if (test_relu()) passed++;
     if (test_maxpool()) passed++;
     if (test_cnn_pipeline()) passed++;
+    if (test_batch_operations()) passed++;
     
+    std::cout << "\n======= TEST RESULTS =======\n";
     std::cout << "Passed: " << passed << "/" << total << " tests\n";
     std::cout << "Status: " << (passed == total ? "ALL TESTS PASSED ✓" : "SOME TESTS FAILED ✗") << "\n";
+}
+
+bool test_batch_operations() {
+    int batchSize = 2;
+    int height = 4, width = 4;
+    
+    float input[32] = {
+        // Batch 1
+        1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16,
+        // Batch 2  
+        -1, -2, 3, 4, -5, 6, 7, -8, 9, -10, 11, 12, -13, 14, 15, -16
+    };
+    
+    float relu_output[32];
+    relu_batch(input, batchSize, height, width, relu_output);
+    
+    bool relu_pass = true;
+    for (int i = 0; i < 32; ++i) {
+        float expected = fmaxf(0.0f, input[i]);
+        if (std::abs(relu_output[i] - expected) > 1e-6) {
+            relu_pass = false;
+            break;
+        }
+    }
+    
+    float pool_output[8]; 
+    maxpool2d_batch(input, batchSize, height, width, 2, 2, pool_output);
+    
+    bool pool_pass = true;
+    for (int i = 0; i < 8; ++i) {
+        if (std::isnan(pool_output[i]) || std::isinf(pool_output[i])) {
+            pool_pass = false;
+            break;
+        }
+    }
+    
+    bool batch_pass = relu_pass && pool_pass;
+    std::cout << "Batch ReLU: " << (relu_pass ? "PASS" : "FAIL") << "\n";
+    std::cout << "Batch MaxPool: " << (pool_pass ? "PASS" : "FAIL") << "\n";
+    std::cout << "Batch Operations: " << (batch_pass ? "PASS" : "FAIL") << "\n";
+    
+    return batch_pass;
 }
