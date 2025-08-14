@@ -19,3 +19,7 @@ void benchmark_maxpool(int inputHeight, int inputWidth,
 
 void benchmark_batch_operations(int batchSize, int inputHeight, int inputWidth, 
                                int kernelHeight, int kernelWidth, int iterations = 50);
+
+void benchmark_multichannel_operations(int inputChannels, int outputChannels, 
+                                     int inputHeight, int inputWidth, 
+                                     int kernelHeight, int kernelWidth, int iterations = 50);

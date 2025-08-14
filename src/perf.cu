@@ -105,8 +105,7 @@ void benchmark_convolution(int inputHeight, int inputWidth,
     float optimized_time;
     cudaEventElapsedTime(&optimized_time, start, stop);
     
-    // Calculate performance metrics
-    long long ops_per_conv = (long long)outputWidth * outputHeight * kernelWidth * kernelHeight * 2; // multiply + add
+    long long ops_per_conv = (long long)outputWidth * outputHeight * kernelWidth * kernelHeight * 2; 
     double gops_naive = (double)(ops_per_conv * iterations) / (naive_time * 1e6);
     double gops_optimized = (double)(ops_per_conv * iterations) / (optimized_time * 1e6);
     
@@ -269,5 +268,51 @@ void benchmark_batch_operations(int batchSize, int inputHeight, int inputWidth,
     std::cout << "Batch ReLU: " << batch_relu_time/(iterations*5) << " ms/batch | " << images_per_sec_relu << " images/sec\n";
     
     delete[] batch_input; delete[] kernel; delete[] batch_output_conv; delete[] batch_output_relu;
+    cudaEventDestroy(start); cudaEventDestroy(stop);
+}
+
+void benchmark_multichannel_operations(int inputChannels, int outputChannels, 
+                                     int inputHeight, int inputWidth, 
+                                     int kernelHeight, int kernelWidth, int iterations) {
+    
+    std::cout << "\n=== MULTICHANNEL BENCHMARK ===\n";
+    std::cout << "Channels: " << inputChannels << "->" << outputChannels << " | Size: " << inputWidth << "x" << inputHeight << "\n";
+    
+    int inputSize = inputChannels * inputHeight * inputWidth;
+    int kernelSize = outputChannels * inputChannels * kernelHeight * kernelWidth;
+    int outputWidth = inputWidth - kernelWidth + 1;
+    int outputHeight = inputHeight - kernelHeight + 1;
+    int outputSize = outputChannels * outputHeight * outputWidth;
+    
+    float* input = new float[inputSize];
+    float* kernel = new float[kernelSize];
+    float* output = new float[outputSize];
+    
+    for (int i = 0; i < inputSize; ++i) input[i] = static_cast<float>(rand()) / RAND_MAX;
+    for (int i = 0; i < kernelSize; ++i) kernel[i] = static_cast<float>(rand()) / RAND_MAX;
+    
+    cudaEvent_t start, stop;
+    cudaEventCreate(&start);
+    cudaEventCreate(&stop);
+    
+    conv2d_multichannel(input, inputChannels, inputHeight, inputWidth, kernel, outputChannels, kernelHeight, kernelWidth, output); // warmup
+    
+    cudaEventRecord(start);
+    for (int i = 0; i < iterations; ++i) {
+        conv2d_multichannel(input, inputChannels, inputHeight, inputWidth, kernel, outputChannels, kernelHeight, kernelWidth, output);
+    }
+    cudaEventRecord(stop);
+    cudaEventSynchronize(stop);
+    
+    float elapsed_time;
+    cudaEventElapsedTime(&elapsed_time, start, stop);
+    
+    long long ops_per_conv = (long long)outputSize * inputChannels * kernelHeight * kernelWidth * 2;
+    double gops = (double)(ops_per_conv * iterations) / (elapsed_time * 1e6);
+    
+    std::cout << std::fixed << std::setprecision(2);
+    std::cout << "Multichannel Conv: " << elapsed_time/iterations << " ms | " << gops << " GOPS\n";
+    
+    delete[] input; delete[] kernel; delete[] output;
     cudaEventDestroy(start); cudaEventDestroy(stop);
 }

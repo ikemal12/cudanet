@@ -71,7 +71,7 @@ bool test_maxpool() {
         4, 5, 6, 8
     };
     
-    float output[4]; // 2x2 output with 2x2 pooling, stride 2
+    float output[4]; 
     maxpool2d(input, 4, 4, 2, 2, output);
     float expected[4] = {6, 8, 9, 8};
     
@@ -122,13 +122,14 @@ bool test_cnn_pipeline() {
 
 void run_all_tests() {
     int passed = 0;
-    int total = 5;
+    int total = 6;
     
     if (test_conv2d()) passed++;
     if (test_relu()) passed++;
     if (test_maxpool()) passed++;
     if (test_cnn_pipeline()) passed++;
     if (test_batch_operations()) passed++;
+    if (test_multichannel_operations()) passed++;
     
     std::cout << "\n======= TEST RESULTS =======\n";
     std::cout << "Passed: " << passed << "/" << total << " tests\n";
@@ -140,9 +141,7 @@ bool test_batch_operations() {
     int height = 4, width = 4;
     
     float input[32] = {
-        // Batch 1
         1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16,
-        // Batch 2  
         -1, -2, 3, 4, -5, 6, 7, -8, 9, -10, 11, 12, -13, 14, 15, -16
     };
     
@@ -175,4 +174,47 @@ bool test_batch_operations() {
     std::cout << "Batch Operations: " << (batch_pass ? "PASS" : "FAIL") << "\n";
     
     return batch_pass;
+}
+
+bool test_multichannel_operations() {
+    float input[27] = { 
+        1,2,3, 4,5,6, 7,8,9,           // Channel 0 (R)
+        9,8,7, 6,5,4, 3,2,1,           // Channel 1 (G)  
+        2,4,6, 8,1,3, 5,7,9            // Channel 2 (B)
+    };
+    
+
+    float kernel[24] = { 
+        1,0, 0,1,  1,0, 0,1,  1,0, 0,1,   
+        0,1, 1,0,  0,1, 1,0,  0,1, 1,0     
+    };
+    
+    float output[8];
+    conv2d_multichannel(input, 3, 3, 3, kernel, 2, 2, 2, output);
+    
+    bool conv_pass = true;
+    for (int i = 0; i < 8; ++i) {
+        if (std::isnan(output[i]) || std::isinf(output[i])) {
+            conv_pass = false;
+            break;
+        }
+    }
+    
+
+    float relu_output[8];
+    relu_multichannel(output, 2, 2, 2, relu_output);
+    
+    bool relu_pass = true;
+    for (int i = 0; i < 8; ++i) {
+        if (relu_output[i] < 0 || std::isnan(relu_output[i])) {
+            relu_pass = false;
+            break;
+        }
+    }
+    
+    bool multichannel_pass = conv_pass && relu_pass;
+    std::cout << "Multichannel Conv: " << (conv_pass ? "PASS" : "FAIL") << "\n";
+    std::cout << "Multichannel ReLU: " << (relu_pass ? "PASS" : "FAIL") << "\n";
+    std::cout << "Multichannel Operations: " << (multichannel_pass ? "PASS" : "FAIL") << "\n";
+    return multichannel_pass;
 }
